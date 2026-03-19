@@ -1,34 +1,46 @@
-#!/usr/bin/env python
-import socket, struct, time
+#!/usr/bin/env python3
+import socket
+import struct
+import time
 
-FAKE = "Thu Mar 19 10:52:53 2021"   # You can change this
-fake_ts = int(time.mktime(time.strptime(FAKE, "%a %b %d %H:%M:%S %Y")))
-ntp_ts = fake_ts + 2208988800  # Convert Unix NTP epoch
+# ===========================================================
+# SET YOUR FAKE DATE HERE (any string you want)
+# Example for your test:
+FAKE = "Thu Mar 19 11:01:53 2021"
+# ===========================================================
+
+# Convert fake date to UNIX timestamp
+unix_ts = int(time.mktime(time.strptime(FAKE, "%a %b %d %H:%M:%S %Y")))
+
+# Convert UNIX to NTP epoch (starts 1900)
+ntp_ts = unix_ts + 2208988800
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", 123))
 
+print("Fake NTP server running on UDP/123...")
+print("Serving:", FAKE)
+
 while True:
     data, addr = sock.recvfrom(48)
-    if len(data) >= 48:
-        # LI=0, Version=4, Mode=4
-        first_byte = (0 << 6) | (4 << 3) | 4
-        response = struct.pack(
+    if data:
+        # LI=0, Version=4, Mode=4 (server)
+        LI = 0
+        VN = 4
+        MODE = 4
+        first_byte = (LI << 6) | (VN << 3) | MODE
+
+        pkt = struct.pack(
             "!B B B b 11I",
-            first_byte,     # LI/VN/Mode
+            first_byte,     # Flags
             1,              # Stratum
             0,              # Poll
             0,              # Precision
-            0,              # Root Delay
-            0,              # Root Dispersion
-            0,              # Reference ID
-            ntp_ts,         # Reference Timestamp
-            0,              # Reference Fraction
-            ntp_ts,         # Originate Timestamp
-            0,
-            ntp_ts,         # Receive Timestamp
-            0,
-            ntp_ts,         # Transmit Timestamp
-            0,
+            0, 0, 0,        # Root delays & dispersion
+            ntp_ts, 0,      # Reference timestamp
+            ntp_ts, 0,      # Originate timestamp
+            ntp_ts, 0,      # Receive timestamp
+            ntp_ts, 0       # Transmit timestamp
         )
-        sock.sendto(response, addr)
+
+        sock.sendto(pkt, addr)
